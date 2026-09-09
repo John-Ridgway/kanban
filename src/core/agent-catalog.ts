@@ -66,6 +66,15 @@ export const RUNTIME_AGENT_CATALOG: RuntimeAgentCatalogEntry[] = [
 		autonomousArgs: ["--yolo"],
 		installUrl: "https://github.com/google-gemini/gemini-cli",
 	},
+	{
+		id: "pi",
+		label: "Pi",
+		binary: "pi",
+		baseArgs: [],
+		// Pi has no built-in permission prompts, so there is no autonomous flag to add.
+		autonomousArgs: [],
+		installUrl: "https://github.com/earendil-works/pi",
+	},
 ];
 
 // Temporarily keep launch support scoped to the core agent set.
@@ -76,6 +85,7 @@ export const RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS: readonly RuntimeAgentId[] = [
 	"codex",
 	"droid",
 	"kiro",
+	"pi",
 	// "opencode",
 	// "gemini",
 ];

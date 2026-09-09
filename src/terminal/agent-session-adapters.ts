@@ -580,6 +580,21 @@ async function ensureTextFile(filePath: string, content: string, executable = fa
 	});
 }
 
+function buildPlanModePrompt(prompt: string, startInPlanMode: boolean | undefined): string {
+	if (!startInPlanMode) {
+		return prompt;
+	}
+	const trimmed = prompt.trim();
+	return [
+		"First, inspect the codebase and produce a clear implementation plan only.",
+		"Do not modify files, do not use write tools, and do not implement anything yet.",
+		"After you present the plan, ask for approval before making changes.",
+		trimmed
+			? `\n\nTask:\n${trimmed}`
+			: " Ask the user what they want planned if the task is unclear.",
+	].join(" ");
+}
+
 function withPrompt(args: string[], prompt: string, mode: "append" | "flag", flag?: string): PreparedAgentLaunch {
 	const trimmed = prompt.trim();
 	if (!trimmed) {
@@ -1350,17 +1365,7 @@ const kiroAdapter: AgentSessionAdapter = {
 			}
 		}
 
-		const trimmedPrompt = input.prompt.trim();
-		const planPrompt = input.startInPlanMode
-			? [
-					"First, inspect the codebase and produce a clear implementation plan only.",
-					"Do not modify files, do not use write tools, and do not implement anything yet.",
-					"After you present the plan, ask for approval before making changes.",
-					trimmedPrompt
-						? `\n\nTask:\n${trimmedPrompt}`
-						: " Ask the user what they want planned if the task is unclear.",
-				].join(" ")
-			: input.prompt;
+		const planPrompt = buildPlanModePrompt(input.prompt, input.startInPlanMode);
 		const withPromptLaunch = withPrompt(args, planPrompt, "append");
 		return {
 			...withPromptLaunch,
@@ -1429,6 +1434,131 @@ const clineAdapter: AgentSessionAdapter = {
 	},
 };
 
+function buildPiKanbanExtensionContent(
+	reviewCommand: string,
+	toInProgressCommand: string,
+	activityCommand: string,
+): string {
+	const reviewCmd = JSON.stringify(reviewCommand);
+	const toInProgressCmd = JSON.stringify(toInProgressCommand);
+	const activityCmd = JSON.stringify(activityCommand);
+	return `import { spawn } from "node:child_process";
+
+const TO_REVIEW_COMMAND = ${reviewCmd};
+const TO_IN_PROGRESS_COMMAND = ${toInProgressCmd};
+const ACTIVITY_COMMAND = ${activityCmd};
+
+function notify(command: string): void {
+	try {
+		const child = spawn(command, { shell: true, stdio: "ignore", detached: true });
+		child.unref();
+	} catch {
+		// Best effort: hook errors should never break Pi event handling.
+	}
+}
+
+function notifyWithPayload(command: string, payload: Record<string, unknown>): void {
+	let encoded = "";
+	try {
+		encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
+	} catch {
+		encoded = "";
+	}
+	notify(encoded ? command + " --metadata-base64 " + encoded : command);
+}
+
+interface PiToolExecutionStartEvent {
+	toolName?: unknown;
+	args?: unknown;
+}
+
+export default function (pi: {
+	on: (event: string, handler: (event: unknown, ctx: unknown) => void) => void;
+}): void {
+	pi.on("project_trust", () => {
+		// Kanban launches Pi inside the user's own project (task worktrees and the main
+		// workspace), so trust project-local resources for this run instead of blocking
+		// autonomous task execution on an interactive trust prompt.
+		return { trusted: "yes" };
+	});
+
+	pi.on("before_agent_start", () => {
+		notifyWithPayload(TO_IN_PROGRESS_COMMAND, { hook_event_name: "beforeAgent" });
+	});
+
+	pi.on("tool_execution_start", (event: unknown) => {
+		const toolEvent = (event ?? {}) as PiToolExecutionStartEvent;
+		notifyWithPayload(ACTIVITY_COMMAND, {
+			hook_event_name: "BeforeTool",
+			tool_name: typeof toolEvent.toolName === "string" ? toolEvent.toolName : undefined,
+			tool_input: toolEvent.args,
+		});
+	});
+
+	pi.on("ui_prompt_start", () => {
+		notifyWithPayload(TO_REVIEW_COMMAND, {
+			hook_event_name: "ui_prompt_start",
+			notification_type: "user_attention",
+		});
+	});
+
+	pi.on("agent_settled", () => {
+		notifyWithPayload(TO_REVIEW_COMMAND, { hook_event_name: "agent_settled" });
+	});
+}
+`;
+}
+
+const piAdapter: AgentSessionAdapter = {
+	async prepare(input) {
+		const args = [...input.args];
+		const env: Record<string, string | undefined> = {};
+
+		if (input.resumeFromTrash && !hasCliOption(args, "--continue") && !hasCliOption(args, "-c")) {
+			args.push("--continue");
+		}
+
+		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId);
+		if (
+			appendedSystemPrompt &&
+			!hasCliOption(args, "--append-system-prompt") &&
+			!hasCliOption(args, "--system-prompt")
+		) {
+			args.push("--append-system-prompt", appendedSystemPrompt);
+		}
+
+		const hooks = resolveHookContext(input);
+		if (hooks) {
+			const extensionPath = join(getHookAgentDirectory("pi"), "kanban.ts");
+			const extensionContent = buildPiKanbanExtensionContent(
+				buildHookCommand("to_review", { source: "pi" }),
+				buildHookCommand("to_in_progress", { source: "pi" }),
+				buildHookCommand("activity", { source: "pi" }),
+			);
+			await ensureTextFile(extensionPath, extensionContent);
+			if (!hasCliOption(args, "--extension") && !hasCliOption(args, "-e")) {
+				args.push("--extension", extensionPath);
+			}
+			Object.assign(
+				env,
+				createHookRuntimeEnv({
+					taskId: hooks.taskId,
+					workspaceId: hooks.workspaceId,
+				}),
+			);
+		}
+
+		const withPromptLaunch = withPrompt(args, buildPlanModePrompt(input.prompt, input.startInPlanMode), "append");
+		return {
+			...withPromptLaunch,
+			env: {
+				...withPromptLaunch.env,
+				...env,
+			},
+		};
+	},
+};
+
 const ADAPTERS: Record<RuntimeAgentId, AgentSessionAdapter> = {
 	claude: claudeAdapter,
 	codex: codexAdapter,
@@ -1437,6 +1567,7 @@ const ADAPTERS: Record<RuntimeAgentId, AgentSessionAdapter> = {
 	droid: droidAdapter,
 	kiro: kiroAdapter,
 	cline: clineAdapter,
+	pi: piAdapter,
 };
 
 export async function prepareAgentLaunch(input: AgentAdapterLaunchInput): Promise<PreparedAgentLaunch> {
