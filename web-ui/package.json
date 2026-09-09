@@ -38,8 +38,10 @@
     "binary-extensions": "^3.1.0",
     "diff": "^8.0.3",
     "fzf": "^0.5.2",
+    "kanban": "file:..",
     "lucide-react": "^0.577.0",
     "motion": "^12.38.0",
+    "p-limit": "^7.3.0",
     "posthog-js": "^1.357.1",
     "prismjs": "^1.30.0",
     "react": "^18.3.1",
@@ -62,5 +64,12 @@
     "typescript": "^5.9.2",
     "vite": "^6.4.2",
     "vitest": "^4.1.0"
+  },
+  "overrides": {
+    "protobufjs": ">=7.6.1 <8",
+    "ws": ">=8.21.0 <9",
+    "dompurify": ">=3.4.13 <4",
+    "nanoid@<4": ">=3.3.17 <4",
+    "postcss": ">=8.5.23 <9"
   }
 }
