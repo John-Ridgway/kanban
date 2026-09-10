@@ -589,9 +589,7 @@ function buildPlanModePrompt(prompt: string, startInPlanMode: boolean | undefine
 		"First, inspect the codebase and produce a clear implementation plan only.",
 		"Do not modify files, do not use write tools, and do not implement anything yet.",
 		"After you present the plan, ask for approval before making changes.",
-		trimmed
-			? `\n\nTask:\n${trimmed}`
-			: " Ask the user what they want planned if the task is unclear.",
+		trimmed ? `\n\nTask:\n${trimmed}` : " Ask the user what they want planned if the task is unclear.",
 	].join(" ");
 }
 
@@ -1450,7 +1448,10 @@ const ACTIVITY_COMMAND = ${activityCmd};
 
 function notify(command: string): void {
 	try {
-		const child = spawn(command, { shell: true, stdio: "ignore", detached: true });
+		// Not detached: on Windows a detached child gets its own console window, which pops up
+		// in the foreground on every hook. Inheriting the parent console keeps it invisible;
+		// windowsHide covers parents without a console.
+		const child = spawn(command, { shell: true, stdio: "ignore", windowsHide: true });
 		child.unref();
 	} catch {
 		// Best effort: hook errors should never break Pi event handling.
