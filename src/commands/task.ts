@@ -24,10 +24,11 @@ import {
 	updateTask,
 } from "../core/task-board-mutations";
 import { resolveProjectInputPath } from "../projects/project-path";
+import { buildPlannedImplementationKickoffPrompt } from "../prompts/planning-prompts";
 import { loadWorkspaceContext, mutateWorkspaceState } from "../state/workspace-state";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 
-const LIST_TASK_COLUMNS = ["backlog", "in_progress", "review", "trash"] as const;
+const LIST_TASK_COLUMNS = ["backlog", "planning", "in_progress", "review", "trash"] as const;
 type ListTaskColumn = (typeof LIST_TASK_COLUMNS)[number];
 type TaskCommandTarget = { taskId?: string; column?: ListTaskColumn };
 
@@ -66,7 +67,13 @@ function parseListColumn(value: string | undefined): ListTaskColumn | undefined 
 	if (value === "done") {
 		return "trash";
 	}
-	if (value === "backlog" || value === "in_progress" || value === "review" || value === "trash") {
+	if (
+		value === "backlog" ||
+		value === "planning" ||
+		value === "in_progress" ||
+		value === "review" ||
+		value === "trash"
+	) {
 		return value;
 	}
 	throw new Error(`Invalid column "${value}". Expected one of: ${LIST_TASK_COLUMNS.join(", ")}, done.`);
@@ -680,9 +687,9 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 		throw new Error(`Task "${input.taskId}" was not found in workspace ${workspaceRepoPath}.`);
 	}
 
-	if (fromColumnId !== "backlog" && fromColumnId !== "in_progress") {
+	if (fromColumnId !== "backlog" && fromColumnId !== "planning" && fromColumnId !== "in_progress") {
 		throw new Error(
-			`Task "${input.taskId}" is in "${fromColumnId}" and can only be started from backlog or in_progress.`,
+			`Task "${input.taskId}" is in "${fromColumnId}" and can only be started from backlog, planning, or in_progress.`,
 		);
 	}
 
@@ -706,7 +713,7 @@ async function startTask(input: { cwd: string; taskId: string; projectPath?: str
 
 		const started = await runtimeClient.runtime.startTaskSession.mutate({
 			taskId: task.id,
-			prompt: task.prompt,
+			prompt: fromColumnId === "planning" ? buildPlannedImplementationKickoffPrompt(task.prompt) : task.prompt,
 			taskTitle: task.title,
 			startInPlanMode: task.startInPlanMode,
 			baseRef: task.baseRef,
@@ -778,7 +785,7 @@ interface TrashTaskMutationValue {
 }
 
 function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
-	return columnId === "in_progress" || columnId === "review";
+	return columnId === "planning" || columnId === "in_progress" || columnId === "review";
 }
 
 async function trashTaskById(input: {
@@ -1101,7 +1108,7 @@ export function registerTaskCommand(program: Command): void {
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
 		.option(
 			"--column <column>",
-			"Filter column: backlog | in_progress | review | done. trash is also accepted.",
+			"Filter column: backlog | planning | in_progress | review | done. trash is also accepted.",
 			parseListColumn,
 		)
 		.action(async (options: { projectPath?: string; column?: ListTaskColumn }) => {
@@ -1241,7 +1248,7 @@ export function registerTaskCommand(program: Command): void {
 		.option("--task-id <id>", "Task ID.")
 		.option(
 			"--column <column>",
-			"Column to move to done: backlog | in_progress | review | done. trash is also accepted.",
+			"Column to move to done: backlog | planning | in_progress | review | done. trash is also accepted.",
 			parseListColumn,
 		)
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
@@ -1263,7 +1270,7 @@ export function registerTaskCommand(program: Command): void {
 		.option("--task-id <id>", "Task ID to permanently delete.")
 		.option(
 			"--column <column>",
-			"Column to bulk-delete: backlog | in_progress | review | done. trash is also accepted.",
+			"Column to bulk-delete: backlog | planning | in_progress | review | done. trash is also accepted.",
 			parseListColumn,
 		)
 		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")

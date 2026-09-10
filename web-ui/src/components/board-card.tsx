@@ -401,7 +401,7 @@ export function BoardCard({
 		if (isCreditLimit) {
 			return <AlertTriangle size={12} className="text-status-orange" />;
 		}
-		if (columnId === "in_progress") {
+		if (columnId === "in_progress" || columnId === "planning") {
 			if (sessionSummary?.state === "failed") {
 				return <AlertCircle size={12} className="text-status-red" />;
 			}
@@ -410,7 +410,8 @@ export function BoardCard({
 		return null;
 	};
 	const statusMarker = renderStatusMarker();
-	const showWorkspaceStatus = columnId === "in_progress" || columnId === "review" || isTrashCard;
+	const showWorkspaceStatus =
+		columnId === "in_progress" || columnId === "planning" || columnId === "review" || isTrashCard;
 	const reviewWorkspacePath = reviewWorkspaceSnapshot
 		? formatPathForDisplay(reviewWorkspaceSnapshot.path)
 		: isTrashCard
@@ -602,12 +603,13 @@ export function BoardCard({
 										</p>
 									)}
 								</div>
-								{columnId === "backlog" ? (
+								{columnId === "backlog" || columnId === "planning" ? (
 									<Button
 										icon={<Play size={14} />}
 										variant="ghost"
 										size="sm"
-										aria-label="Start task"
+										aria-label={columnId === "planning" ? "Start implementation" : "Start task"}
+										title={columnId === "planning" ? "Start implementation using the plan" : undefined}
 										onMouseDown={stopEvent}
 										onClick={(event) => {
 											stopEvent(event);

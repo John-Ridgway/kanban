@@ -46,6 +46,8 @@ interface StartTaskSessionResult {
 
 interface StartTaskSessionOptions {
 	resumeFromTrash?: boolean;
+	/** Overrides the card prompt for this kickoff only (e.g. planning kickoff). */
+	kickoffPrompt?: string;
 }
 
 export interface UseTaskSessionsResult {
@@ -150,7 +152,8 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 				return { ok: false, message: "No project selected." };
 			}
 			try {
-				const kickoffPrompt = options?.resumeFromTrash ? "" : task.prompt.trim();
+				const overridePrompt = options?.kickoffPrompt?.trim();
+				const kickoffPrompt = options?.resumeFromTrash ? "" : overridePrompt || task.prompt.trim();
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
 				const geometry =
 					getTerminalGeometry(task.id) ?? estimateTaskSessionGeometry(window.innerWidth, window.innerHeight);

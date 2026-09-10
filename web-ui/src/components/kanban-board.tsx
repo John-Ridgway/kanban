@@ -19,7 +19,7 @@ import { canCreateTaskDependency } from "@/state/board-state";
 import { findCardColumnId, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
 import type { BoardCard, BoardColumnId, BoardData, BoardDependency } from "@/types";
 
-const BOARD_COLUMN_ORDER: BoardColumnId[] = ["backlog", "in_progress", "review", "trash"];
+const BOARD_COLUMN_ORDER: BoardColumnId[] = ["backlog", "planning", "in_progress", "review", "trash"];
 
 export type RequestProgrammaticCardMove = (move: ProgrammaticCardMoveInFlight) => boolean;
 
@@ -386,7 +386,7 @@ export function KanbanBoard({
 						column={column}
 						taskSessions={taskSessions}
 						onCreateTask={column.id === "backlog" ? onCreateTask : undefined}
-						onStartTask={column.id === "backlog" ? onStartTask : undefined}
+						onStartTask={column.id === "backlog" || column.id === "planning" ? onStartTask : undefined}
 						onStartAllTasks={column.id === "backlog" ? onStartAllTasks : undefined}
 						onClearTrash={column.id === "trash" ? onClearTrash : undefined}
 						editingTaskId={column.id === "backlog" ? editingTaskId : null}

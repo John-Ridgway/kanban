@@ -33,6 +33,12 @@ export function isAllowedCrossColumnCardMove(
 	if (fromColumnId === "backlog" && toColumnId === "in_progress") {
 		return true;
 	}
+	if (fromColumnId === "backlog" && toColumnId === "planning") {
+		return true;
+	}
+	if (fromColumnId === "planning" && (toColumnId === "in_progress" || toColumnId === "backlog")) {
+		return true;
+	}
 	if (toColumnId === "trash" && fromColumnId !== "trash") {
 		return true;
 	}
@@ -80,10 +86,20 @@ export function isCardDropDisabled(
 		});
 	}
 	if (columnId === "backlog") {
-		return activeDragSourceColumnId !== "backlog";
+		return activeDragSourceColumnId !== "backlog" && activeDragSourceColumnId !== "planning";
+	}
+	if (columnId === "planning") {
+		return !isAllowedCrossColumnCardMove(activeDragSourceColumnId, columnId, {
+			taskId: options?.activeDragTaskId,
+			programmaticCardMoveInFlight: options?.programmaticCardMoveInFlight,
+		});
 	}
 	if (columnId === "in_progress") {
-		if (activeDragSourceColumnId === "backlog" || activeDragSourceColumnId === "in_progress") {
+		if (
+			activeDragSourceColumnId === "backlog" ||
+			activeDragSourceColumnId === "planning" ||
+			activeDragSourceColumnId === "in_progress"
+		) {
 			return false;
 		}
 		return !isAllowedCrossColumnCardMove(activeDragSourceColumnId, columnId, {

@@ -94,6 +94,7 @@ export interface WorkspaceRegistry {
 function createEmptyProjectTaskCounts(): RuntimeProjectTaskCounts {
 	return {
 		backlog: 0,
+		planning: 0,
 		in_progress: 0,
 		review: 0,
 		trash: 0,
@@ -107,6 +108,9 @@ function countTasksByColumn(board: RuntimeBoardData): RuntimeProjectTaskCounts {
 		switch (column.id) {
 			case "backlog":
 				counts.backlog += count;
+				break;
+			case "planning":
+				counts.planning += count;
 				break;
 			case "in_progress":
 				counts.in_progress += count;

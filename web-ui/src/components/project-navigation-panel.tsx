@@ -95,6 +95,7 @@ export function ProjectNavigationPanel({
 	const isProjectRemovalPending = pendingProjectRemoval !== null && removingProjectId === pendingProjectRemoval.id;
 	const pendingProjectTaskCount = pendingProjectRemoval
 		? pendingProjectRemoval.taskCounts.backlog +
+			pendingProjectRemoval.taskCounts.planning +
 			pendingProjectRemoval.taskCounts.in_progress +
 			pendingProjectRemoval.taskCounts.review +
 			pendingProjectRemoval.taskCounts.trash
@@ -712,6 +713,13 @@ function ProjectRow({
 			shortLabel: "B",
 			toneClassName: "bg-text-primary/15 text-text-primary",
 			count: project.taskCounts.backlog,
+		},
+		{
+			id: "planning",
+			title: "Planning",
+			shortLabel: "PL",
+			toneClassName: "bg-status-gold/20 text-status-gold",
+			count: project.taskCounts.planning,
 		},
 		{
 			id: "in_progress",

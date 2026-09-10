@@ -1,4 +1,5 @@
 import type { DropResult } from "@hello-pangea/dnd";
+import { buildPlannedImplementationKickoffPrompt, buildPlanningKickoffPrompt } from "@runtime-planning-prompts";
 import pLimit from "p-limit";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -51,6 +52,14 @@ interface SelectedBoardCard {
 interface PendingProgrammaticStartMoveCompletion {
 	resolve: (started: boolean) => void;
 	timeoutId: number;
+}
+
+interface KickoffTaskInProgressOptions {
+	optimisticMove?: boolean;
+	/** Overrides the card prompt for this kickoff only. */
+	kickoffPrompt?: string;
+	/** Column the card should be in after the move (used for failure reverts). */
+	targetColumnId?: BoardColumnId;
 }
 
 interface UseBoardInteractionsInput {
@@ -295,16 +304,17 @@ export function useBoardInteractions({
 			task: BoardCard,
 			taskId: string,
 			fromColumnId: BoardColumnId,
-			options?: { optimisticMove?: boolean },
+			options?: KickoffTaskInProgressOptions,
 		): Promise<boolean> => {
 			const optimisticMove = options?.optimisticMove ?? true;
+			const targetColumnId = options?.targetColumnId ?? "in_progress";
 			const ensured = await ensureTaskWorkspace(task);
 			if (!ensured.ok) {
 				notifyError(ensured.message ?? "Could not set up task workspace.");
 				if (optimisticMove) {
 					setBoard((currentBoard) => {
 						const currentColumnId = getTaskColumnId(currentBoard, taskId);
-						if (currentColumnId !== "in_progress") {
+						if (currentColumnId !== targetColumnId) {
 							return currentBoard;
 						}
 						const reverted = moveTaskToColumn(currentBoard, taskId, fromColumnId);
@@ -338,13 +348,16 @@ export function useBoardInteractions({
 					setTaskWorkspaceInfo(infoAfterEnsure);
 				}
 			}
-			const started = await startTaskSession(task);
+			const kickoffSessionOptions = options?.kickoffPrompt ? { kickoffPrompt: options.kickoffPrompt } : undefined;
+			const started = kickoffSessionOptions
+				? await startTaskSession(task, kickoffSessionOptions)
+				: await startTaskSession(task);
 			if (!started.ok) {
 				notifyError(started.message ?? "Could not start task session.");
 				if (optimisticMove) {
 					setBoard((currentBoard) => {
 						const currentColumnId = getTaskColumnId(currentBoard, taskId);
-						if (currentColumnId !== "in_progress") {
+						if (currentColumnId !== targetColumnId) {
 							return currentBoard;
 						}
 						const reverted = moveTaskToColumn(currentBoard, taskId, fromColumnId);
@@ -359,7 +372,7 @@ export function useBoardInteractions({
 					if (currentColumnId !== fromColumnId) {
 						return currentBoard;
 					}
-					const moved = moveTaskToColumn(currentBoard, taskId, "in_progress", { insertAtTop: true });
+					const moved = moveTaskToColumn(currentBoard, taskId, targetColumnId, { insertAtTop: true });
 					return moved.moved ? moved.board : currentBoard;
 				});
 			}
@@ -431,6 +444,77 @@ export function useBoardInteractions({
 			resolvePendingProgrammaticStartMove,
 			selectedCard,
 			startBacklogTaskImmediately,
+			tryProgrammaticCardMove,
+			waitForBacklogCardHeightToSettle,
+			waitForProgrammaticCardMoveAvailability,
+		],
+	);
+
+	const startPlannedTaskImmediately = useCallback(
+		async (task: BoardCard): Promise<boolean> => {
+			const selection = findCardSelection(board, task.id);
+			if (!selection || selection.column.id !== "planning") {
+				return false;
+			}
+
+			setBoard((currentBoard) => {
+				const currentSelection = findCardSelection(currentBoard, task.id);
+				if (!currentSelection || currentSelection.column.id !== "planning") {
+					return currentBoard;
+				}
+				const moved = moveTaskToColumn(currentBoard, task.id, "in_progress", { insertAtTop: true });
+				return moved.moved ? moved.board : currentBoard;
+			});
+
+			return kickoffTaskInProgress(task, task.id, "planning", {
+				optimisticMove: true,
+				kickoffPrompt: buildPlannedImplementationKickoffPrompt(task.prompt),
+			});
+		},
+		[board, kickoffTaskInProgress, setBoard],
+	);
+
+	const startPlannedTaskWithAnimation = useCallback(
+		async (task: BoardCard): Promise<boolean> => {
+			if (selectedCard) {
+				return startPlannedTaskImmediately(task);
+			}
+
+			await waitForBacklogCardHeightToSettle(task.id);
+
+			const programmaticMoveAttempt = tryProgrammaticCardMove(task.id, "planning", "in_progress");
+			if (programmaticMoveAttempt === "blocked") {
+				await waitForProgrammaticCardMoveAvailability();
+				return startPlannedTaskWithAnimation(task);
+			}
+			if (programmaticMoveAttempt === "unavailable") {
+				return kickoffTaskInProgress(task, task.id, "planning", {
+					optimisticMove: false,
+					kickoffPrompt: buildPlannedImplementationKickoffPrompt(task.prompt),
+				});
+			}
+
+			let resolveCompletion: ((started: boolean) => void) | null = null;
+			const completionPromise = new Promise<boolean>((resolve) => {
+				resolveCompletion = resolve;
+			});
+			const timeoutId = window.setTimeout(() => {
+				resolvePendingProgrammaticStartMove(task.id, false);
+			}, 5000);
+			pendingProgrammaticStartMoveCompletionByTaskIdRef.current[task.id] = {
+				resolve: (started) => {
+					resolveCompletion?.(started);
+					resolveCompletion = null;
+				},
+				timeoutId,
+			};
+			return completionPromise;
+		},
+		[
+			kickoffTaskInProgress,
+			resolvePendingProgrammaticStartMove,
+			selectedCard,
+			startPlannedTaskImmediately,
 			tryProgrammaticCardMove,
 			waitForBacklogCardHeightToSettle,
 			waitForProgrammaticCardMoveAvailability,
@@ -642,13 +726,17 @@ export function useBoardInteractions({
 
 			if (
 				moveEvent.toColumnId === "in_progress" &&
-				moveEvent.fromColumnId === "backlog" &&
+				(moveEvent.fromColumnId === "backlog" || moveEvent.fromColumnId === "planning") &&
 				!programmaticMoveBehavior?.skipKickoff
 			) {
 				maybeRequestNotificationPermissionForTaskStart();
 				const movedSelection = findCardSelection(applied.board, moveEvent.taskId);
 				if (movedSelection) {
-					void kickoffTaskInProgress(movedSelection.card, moveEvent.taskId, moveEvent.fromColumnId)
+					const kickoffOptions: KickoffTaskInProgressOptions = {};
+					if (moveEvent.fromColumnId === "planning") {
+						kickoffOptions.kickoffPrompt = buildPlannedImplementationKickoffPrompt(movedSelection.card.prompt);
+					}
+					void kickoffTaskInProgress(movedSelection.card, moveEvent.taskId, moveEvent.fromColumnId, kickoffOptions)
 						.then((started) => {
 							resolvePendingProgrammaticStartMove(moveEvent.taskId, started);
 						})
@@ -659,6 +747,34 @@ export function useBoardInteractions({
 				}
 				resolvePendingProgrammaticStartMove(moveEvent.taskId, false);
 				return;
+			}
+
+			if (
+				moveEvent.toColumnId === "planning" &&
+				moveEvent.fromColumnId === "backlog" &&
+				!programmaticMoveBehavior?.skipKickoff
+			) {
+				maybeRequestNotificationPermissionForTaskStart();
+				const movedSelection = findCardSelection(applied.board, moveEvent.taskId);
+				if (movedSelection) {
+					void kickoffTaskInProgress(movedSelection.card, moveEvent.taskId, moveEvent.fromColumnId, {
+						targetColumnId: "planning",
+						kickoffPrompt: buildPlanningKickoffPrompt(movedSelection.card.prompt),
+					})
+						.then((started) => {
+							resolvePendingProgrammaticStartMove(moveEvent.taskId, started);
+						})
+						.catch(() => {
+							resolvePendingProgrammaticStartMove(moveEvent.taskId, false);
+						});
+					return;
+				}
+				resolvePendingProgrammaticStartMove(moveEvent.taskId, false);
+				return;
+			}
+
+			if (moveEvent.fromColumnId === "planning" && moveEvent.toColumnId === "backlog") {
+				void stopTaskSession(moveEvent.taskId);
 			}
 			resolvePendingProgrammaticStartMove(moveEvent.taskId, false);
 		},
@@ -673,19 +789,32 @@ export function useBoardInteractions({
 			resolvePendingProgrammaticTrashMove,
 			setBoard,
 			setSelectedTaskId,
+			stopTaskSession,
 		],
 	);
 
 	const handleStartTask = useCallback(
 		(taskId: string) => {
 			const selection = findCardSelection(board, taskId);
-			if (!selection || selection.column.id !== "backlog") {
+			if (!selection) {
 				return;
 			}
-			maybeRequestNotificationPermissionForTaskStart();
-			void startBacklogTaskWithAnimation(selection.card);
+			if (selection.column.id === "backlog") {
+				maybeRequestNotificationPermissionForTaskStart();
+				void startBacklogTaskWithAnimation(selection.card);
+				return;
+			}
+			if (selection.column.id === "planning") {
+				maybeRequestNotificationPermissionForTaskStart();
+				void startPlannedTaskWithAnimation(selection.card);
+			}
 		},
-		[board, maybeRequestNotificationPermissionForTaskStart, startBacklogTaskWithAnimation],
+		[
+			board,
+			maybeRequestNotificationPermissionForTaskStart,
+			startBacklogTaskWithAnimation,
+			startPlannedTaskWithAnimation,
+		],
 	);
 
 	const handleStartAllBacklogTasks = useCallback(
