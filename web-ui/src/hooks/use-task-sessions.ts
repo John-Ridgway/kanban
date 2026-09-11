@@ -48,6 +48,8 @@ interface StartTaskSessionOptions {
 	resumeFromTrash?: boolean;
 	/** Overrides the card prompt for this kickoff only (e.g. planning kickoff). */
 	kickoffPrompt?: string;
+	/** Reset the task's session context (fresh context) before starting this kickoff. */
+	clearContext?: boolean;
 }
 
 export interface UseTaskSessionsResult {
@@ -164,6 +166,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					images: options?.resumeFromTrash ? undefined : task.images,
 					startInPlanMode: options?.resumeFromTrash ? undefined : task.startInPlanMode,
 					resumeFromTrash: options?.resumeFromTrash,
+					clearContext: options?.clearContext,
 					baseRef: task.baseRef,
 					cols: geometry.cols,
 					rows: geometry.rows,
