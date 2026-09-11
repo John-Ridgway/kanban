@@ -16,11 +16,11 @@ export function ColumnIndicator({ columnId, size = 14 }: { columnId: string; siz
 	}
 	if (columnId === "planning") {
 		const top = cy - r;
-		const right = cx + r;
+		const left = cx - r;
 		return (
 			<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
 				<circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={strokeWidth} />
-				<path d={`M${cx} ${cy} L${cx} ${top} A${r} ${r} 0 0 1 ${right} ${cy} Z`} fill={color} />
+				<path d={`M${cx} ${cy} L${cx} ${top} A${r} ${r} 0 0 0 ${left} ${cy} Z`} fill={color} />
 			</svg>
 		);
 	}
