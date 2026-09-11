@@ -96,11 +96,17 @@ const env = {
 	KANBAN_WEB_UI_PORT: String(webUiPort),
 };
 
-const tsxBin = isWindows ? "node_modules/.bin/tsx.cmd" : "node_modules/.bin/tsx";
-const runtime = spawn(tsxBin, ["watch", "src/cli.ts", ...runtimeCliArgs], {
-	env,
-	stdio: "inherit",
-});
+// Spawn the tsx CLI through Node directly. On Windows, .bin shims are .cmd
+// files that can't be spawned without a shell (spawn EINVAL), and going
+// through a shell introduces arg-quoting pitfalls.
+const runtime = spawn(
+	process.execPath,
+	["node_modules/tsx/dist/cli.mjs", "watch", "src/cli.ts", ...runtimeCliArgs],
+	{
+		env,
+		stdio: "inherit",
+	},
+);
 
 let vite;
 let exiting = false;

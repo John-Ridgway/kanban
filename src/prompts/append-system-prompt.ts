@@ -183,11 +183,11 @@ All commands return JSON.
 Purpose: list Kanban tasks for a workspace, including auto-review settings and dependency links.
 
 Command:
-\`${kanbanCommand} task list [--project-path <path>] [--column backlog|in_progress|review|done]\`
+\`${kanbanCommand} task list [--project-path <path>] [--column backlog|planning|in_progress|review|done]\`
 
 Parameters:
 - \`--project-path <path>\` optional workspace path. If omitted, uses the current working directory workspace.
-- \`--column <value>\` optional filter. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
+- \`--column <value>\` optional filter. Allowed values: \`backlog\`, \`planning\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
 
 ## task create
 
@@ -230,11 +230,11 @@ Notes:
 Purpose: move a task or an entire column to \`done\`, stop active sessions if needed, clean up task worktrees, and auto-start any linked backlog tasks that become ready. \`task trash\` is also accepted as an alias.
 
 Command:
-\`${kanbanCommand} task done (--task-id <task_id> | --column backlog|in_progress|review|done) [--project-path <path>]\`
+\`${kanbanCommand} task done (--task-id <task_id> | --column backlog|planning|in_progress|review|done) [--project-path <path>]\`
 
 Parameters:
 - \`--task-id <task_id>\` optional single-task target.
-- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
+- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`planning\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
 - \`--project-path <path>\` optional workspace path. If not already registered in Kanban, it is auto-added for git repos.
 
 Notes:
@@ -246,11 +246,11 @@ Notes:
 Purpose: permanently delete a task or every task in a column, removing cards, dependency links, and task worktrees.
 
 Command:
-\`${kanbanCommand} task delete (--task-id <task_id> | --column backlog|in_progress|review|done) [--project-path <path>]\`
+\`${kanbanCommand} task delete (--task-id <task_id> | --column backlog|planning|in_progress|review|done) [--project-path <path>]\`
 
 Parameters:
 - \`--task-id <task_id>\` optional single-task target.
-- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
+- \`--column <value>\` optional bulk target. Allowed values: \`backlog\`, \`planning\`, \`in_progress\`, \`review\`, \`done\` (\`trash\` is also accepted).
 - \`--project-path <path>\` optional workspace path. If not already registered in Kanban, it is auto-added for git repos.
 
 Notes:
@@ -296,6 +296,9 @@ Command:
 Parameters:
 - \`--task-id <task_id>\` required task ID.
 - \`--project-path <path>\` optional workspace path. If not already registered in Kanban, it is auto-added for git repos.
+
+Notes:
+- Tasks in \`planning\` start with a kickoff prompt that instructs the agent to follow the plan from \`PLAN.md\` (written during the planning session) as its guide.
 
 # Workflow Notes
 

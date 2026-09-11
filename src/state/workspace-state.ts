@@ -33,6 +33,7 @@ const WORKSPACE_ID_COLLISION_SUFFIX_LENGTH = 4;
 
 const BOARD_COLUMNS: Array<{ id: RuntimeBoardColumnId; title: string }> = [
 	{ id: "backlog", title: "Backlog" },
+	{ id: "planning", title: "Planning" },
 	{ id: "in_progress", title: "In Progress" },
 	{ id: "review", title: "Review" },
 	{ id: "trash", title: "Done" },
@@ -292,11 +293,25 @@ function parseWorkspaceStateSavePayload(payload: RuntimeWorkspaceStateSaveReques
 	return parsed.data;
 }
 
+// Boards persisted before the planning column existed load without it. Rebuild
+// the column list from the canonical order so missing columns reappear (empty)
+// in their expected position and stale ordering is corrected.
+function ensureBoardColumns(board: RuntimeBoardData): RuntimeBoardData {
+	const columnById = new Map(board.columns.map((column) => [column.id, column]));
+	const columns = BOARD_COLUMNS.map((column) => {
+		const existing = columnById.get(column.id);
+		return existing ?? { id: column.id, title: column.title, cards: [] };
+	});
+	return { ...board, columns };
+}
+
 async function readWorkspaceBoard(workspaceId: string): Promise<RuntimeBoardData> {
 	const boardPath = getWorkspaceBoardPath(workspaceId);
 	const rawBoard = await readJsonFile(boardPath);
 	return updateTaskDependencies(
-		parsePersistedStateFile(boardPath, BOARD_FILENAME, rawBoard, runtimeBoardDataSchema, createEmptyBoard()),
+		ensureBoardColumns(
+			parsePersistedStateFile(boardPath, BOARD_FILENAME, rawBoard, runtimeBoardDataSchema, createEmptyBoard()),
+		),
 	);
 }
 
