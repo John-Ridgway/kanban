@@ -86,6 +86,8 @@ export interface StartTaskSessionRequest {
 	images?: RuntimeTaskImage[];
 	startInPlanMode?: boolean;
 	resumeFromTrash?: boolean;
+	/** When true, force a fresh process even if one is already active (clears the prior turn's context). */
+	clearContext?: boolean;
 	cols?: number;
 	rows?: number;
 	env?: Record<string, string | undefined>;
@@ -298,7 +300,7 @@ export class TerminalSessionManager implements TerminalSessionService {
 			kind: "task",
 			request: cloneStartTaskSessionRequest(request),
 		};
-		if (entry.active && isActiveState(entry.summary.state)) {
+		if (!request.clearContext && entry.active && isActiveState(entry.summary.state)) {
 			return cloneSummary(entry.summary);
 		}
 

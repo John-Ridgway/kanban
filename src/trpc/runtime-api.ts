@@ -168,7 +168,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		startTaskSession: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskSessionStartRequest(input);
-				if (body.resumeFromTrash) {
+				if (body.resumeFromTrash || body.clearContext) {
 					deps.broadcastTaskChatCleared?.(workspaceScope.workspaceId, body.taskId);
 				}
 				const requestedClineTaskMode = body.mode ?? "act";
@@ -236,6 +236,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						taskTitle: resolvedClineTitle.length > 0 ? resolvedClineTitle : undefined,
 						images: body.images,
 						resumeFromTrash: body.resumeFromTrash,
+						clearContext: body.clearContext,
 						providerId: clineLaunchConfig.providerId,
 						modelId: clineLaunchConfig.modelId,
 						mode: requestedClineTaskMode,
@@ -289,6 +290,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					images: body.images,
 					startInPlanMode: body.startInPlanMode,
 					resumeFromTrash: body.resumeFromTrash,
+					clearContext: body.clearContext,
 					cols: body.cols,
 					rows: body.rows,
 					workspaceId: workspaceScope.workspaceId,

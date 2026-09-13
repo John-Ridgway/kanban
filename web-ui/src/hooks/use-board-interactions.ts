@@ -60,6 +60,8 @@ interface KickoffTaskInProgressOptions {
 	kickoffPrompt?: string;
 	/** Column the card should be in after the move (used for failure reverts). */
 	targetColumnId?: BoardColumnId;
+	/** Reset the task's session context (fresh context) before this kickoff. */
+	clearContext?: boolean;
 }
 
 interface UseBoardInteractionsInput {
@@ -348,7 +350,13 @@ export function useBoardInteractions({
 					setTaskWorkspaceInfo(infoAfterEnsure);
 				}
 			}
-			const kickoffSessionOptions = options?.kickoffPrompt ? { kickoffPrompt: options.kickoffPrompt } : undefined;
+			const kickoffSessionOptions =
+				options?.kickoffPrompt || options?.clearContext
+					? {
+								kickoffPrompt: options.kickoffPrompt,
+								clearContext: options.clearContext,
+							}
+					: undefined;
 			const started = kickoffSessionOptions
 				? await startTaskSession(task, kickoffSessionOptions)
 				: await startTaskSession(task);
@@ -469,6 +477,7 @@ export function useBoardInteractions({
 			return kickoffTaskInProgress(task, task.id, "planning", {
 				optimisticMove: true,
 				kickoffPrompt: buildPlannedImplementationKickoffPrompt(task.prompt),
+				clearContext: true,
 			});
 		},
 		[board, kickoffTaskInProgress, setBoard],
@@ -491,6 +500,7 @@ export function useBoardInteractions({
 				return kickoffTaskInProgress(task, task.id, "planning", {
 					optimisticMove: false,
 					kickoffPrompt: buildPlannedImplementationKickoffPrompt(task.prompt),
+					clearContext: true,
 				});
 			}
 
@@ -532,7 +542,11 @@ export function useBoardInteractions({
 					continue;
 				}
 				const columnId = getTaskColumnId(nextBoard, summary.taskId);
-				if (summary.state === "awaiting_review" && columnId === "in_progress") {
+				if (
+					summary.state === "awaiting_review" &&
+					previous?.state !== "awaiting_review" &&
+					columnId === "in_progress"
+				) {
 					const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, "review");
 					if (programmaticMoveAttempt === "started" || programmaticMoveAttempt === "blocked") {
 						continue;
@@ -735,6 +749,9 @@ export function useBoardInteractions({
 					const kickoffOptions: KickoffTaskInProgressOptions = {};
 					if (moveEvent.fromColumnId === "planning") {
 						kickoffOptions.kickoffPrompt = buildPlannedImplementationKickoffPrompt(movedSelection.card.prompt);
+						// Reset the planning context so the card starts a fresh implementation turn from PLAN.md
+						// instead of no-op'ing on the (awaiting_review) planning session and jumping to review.
+						kickoffOptions.clearContext = true;
 					}
 					void kickoffTaskInProgress(movedSelection.card, moveEvent.taskId, moveEvent.fromColumnId, kickoffOptions)
 						.then((started) => {

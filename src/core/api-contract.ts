@@ -984,6 +984,8 @@ export const runtimeTaskSessionStartRequestSchema = z.object({
 	rows: z.number().int().positive().optional(),
 	agentId: runtimeAgentIdSchema.optional(),
 	clineSettings: runtimeTaskClineSettingsSchema.optional(),
+	/** When true, reset this task's session context (fresh context) before starting with `prompt`. */
+	clearContext: z.boolean().optional(),
 });
 export type RuntimeTaskSessionStartRequest = z.infer<typeof runtimeTaskSessionStartRequestSchema>;
 
