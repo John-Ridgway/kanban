@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# Line endings
+# ---------------------------------------------------------------------------
+# Store LF in the repo and check out LF in the working tree on EVERY platform
+# (including Windows). Explicit eol=lf overrides core.autocrlf, so the working
+# tree matches the formatter (Biome `lineEnding: lf`) and pre-commit checks pass
+# identically on every OS.
+* text=auto eol=lf
+
+# Explicitly mark binary assets so git never re-encodes / line-ends them.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.mp4   binary
+*.webm  binary
+*.mp3   binary
+
+# Git hooks must stay LF + executable on every platform (a CRLF hook breaks on Unix).
+.husky/* text eol=lf
