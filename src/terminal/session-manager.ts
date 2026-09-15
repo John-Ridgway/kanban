@@ -306,8 +306,13 @@ export class TerminalSessionManager implements TerminalSessionService {
 
 		if (entry.active) {
 			stopWorkspaceTrustTimers(entry.active);
-			entry.active.session.stop();
+			const stopping = entry.active;
+			stopping.session.stop();
 			entry.active = null;
+			// Ensure the previous PTY has fully exited before spawning the replacement. Otherwise
+			// the dying process's exit can fire after the new session becomes active, corrupt its
+			// state and trigger a duplicate auto-restart, leaving two sessions running the task.
+			await stopping.session.waitForExit();
 		}
 		entry.terminalStateMirror?.dispose();
 		entry.terminalStateMirror = null;
@@ -564,8 +569,12 @@ export class TerminalSessionManager implements TerminalSessionService {
 
 		if (entry.active) {
 			stopWorkspaceTrustTimers(entry.active);
-			entry.active.session.stop();
+			const stopping = entry.active;
+			stopping.session.stop();
 			entry.active = null;
+			// Ensure the previous PTY has fully exited before spawning the replacement so its exit
+			// handler cannot race with (and corrupt) the newly started session.
+			await stopping.session.waitForExit();
 		}
 		entry.terminalStateMirror?.dispose();
 		entry.terminalStateMirror = null;
