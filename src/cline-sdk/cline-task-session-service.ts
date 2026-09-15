@@ -67,6 +67,8 @@ export interface StartClineTaskSessionRequest {
 	images?: RuntimeTaskImage[];
 	resumeFromTrash?: boolean;
 	resumeFromPersistence?: boolean;
+	/** When true, reset this task's session context (fresh context) before starting with `prompt`. */
+	clearContext?: boolean;
 	providerId?: string | null;
 	modelId?: string | null;
 	mode?: RuntimeTaskSessionMode;
@@ -322,10 +324,17 @@ export class InMemoryClineTaskSessionService implements ClineTaskSessionService 
 		if (
 			!request.resumeFromTrash &&
 			!request.resumeFromPersistence &&
+			!request.clearContext &&
 			existing &&
 			(existing.summary.state === "running" || existing.summary.state === "awaiting_review")
 		) {
 			return cloneSummary(existing.summary);
+		}
+
+		if (request.clearContext) {
+			// Tear down the prior turn (e.g. a finished planning agent) so it doesn't keep running while
+			// we start a brand-new turn in a fresh context below.
+			await this.sessionRuntime.stopTaskSession(request.taskId).catch(() => undefined);
 		}
 
 		const providerId = request.providerId?.trim().toLowerCase() || SDK_DEFAULT_PROVIDER_ID;
