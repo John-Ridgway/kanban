@@ -4,12 +4,14 @@ import type {
 	RuntimeTaskAutoReviewMode,
 	RuntimeTaskClineSettings,
 	RuntimeTaskImage,
+	RuntimeTaskTag,
 } from "@/runtime/types";
 
 export type BoardColumnId = RuntimeBoardColumnId;
 
 export type TaskAutoReviewMode = RuntimeTaskAutoReviewMode;
 export type TaskImage = RuntimeTaskImage;
+export type TaskTag = RuntimeTaskTag;
 
 export const DEFAULT_TASK_AUTO_REVIEW_MODE: TaskAutoReviewMode = "commit";
 
@@ -47,6 +49,7 @@ export interface BoardCard {
 	agentId?: RuntimeAgentId;
 	clineSettings?: RuntimeTaskClineSettings;
 	baseRef: string;
+	tagIds: string[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -67,6 +70,7 @@ export interface BoardDependency {
 export interface BoardData {
 	columns: BoardColumn[];
 	dependencies: BoardDependency[];
+	tags: TaskTag[];
 }
 
 export interface ReviewTaskWorkspaceSnapshot {

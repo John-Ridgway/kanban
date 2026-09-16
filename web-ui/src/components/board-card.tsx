@@ -11,13 +11,14 @@ import {
 	formatClineSelectedModelButtonText,
 	resolveClineModelDisplayName,
 } from "@/components/detail-panels/cline-model-picker-options";
+import { TagPill } from "@/components/tag-pill";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
-import type { RuntimeTaskSessionSummary } from "@/runtime/types";
+import type { RuntimeAgentId, RuntimeTaskSessionSummary } from "@/runtime/types";
 import { useTaskWorkspaceSnapshotValue } from "@/stores/workspace-metadata-store";
-import type { BoardCard as BoardCardModel, BoardColumnId } from "@/types";
+import type { BoardCard as BoardCardModel, BoardColumnId, TaskTag } from "@/types";
 import { getTaskAutoReviewCancelButtonLabel } from "@/types";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { useMeasure } from "@/utils/react-use";
@@ -234,6 +235,8 @@ export function BoardCard({
 	isDependencyLinking = false,
 	workspacePath,
 	defaultClineModelId = null,
+	tags,
+	defaultAgentId = null,
 }: {
 	card: BoardCardModel;
 	index: number;
@@ -258,6 +261,8 @@ export function BoardCard({
 	isDependencyLinking?: boolean;
 	workspacePath?: string | null;
 	defaultClineModelId?: string | null;
+	tags?: TaskTag[];
+	defaultAgentId?: RuntimeAgentId | null;
 }): React.ReactElement {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -434,42 +439,59 @@ export function BoardCard({
 	const isAnyGitActionLoading = isCommitLoading || isOpenPrLoading;
 	const cancelAutomaticActionLabel =
 		!isTrashCard && card.autoReviewEnabled ? getTaskAutoReviewCancelButtonLabel(card.autoReviewMode) : null;
-	const agentOverrideLabel = useMemo(
-		() => (card.agentId ? (getRuntimeAgentCatalogEntry(card.agentId)?.label ?? card.agentId) : null),
-		[card.agentId],
-	);
-	const modelOverrideLabel = useMemo(() => {
-		if (card.clineSettings === undefined) {
+	const effectiveAgentId: RuntimeAgentId | null = card.agentId ?? defaultAgentId ?? null;
+
+	const agentLabel = useMemo(() => {
+		if (!effectiveAgentId) return null;
+		return getRuntimeAgentCatalogEntry(effectiveAgentId)?.label ?? effectiveAgentId;
+	}, [effectiveAgentId]);
+
+	const modelLabel = useMemo(() => {
+		if (card.clineSettings !== undefined) {
+			const explicitReasoningLabel = card.clineSettings.reasoningEffort
+				? formatClineReasoningEffortLabel(card.clineSettings.reasoningEffort)
+				: !card.clineSettings.providerId && !card.clineSettings.modelId
+					? "Default"
+					: null;
+			if (card.clineSettings.providerId && !card.clineSettings.modelId) {
+				const providerLabel = `Provider: ${card.clineSettings.providerId}`;
+				return explicitReasoningLabel ? `${providerLabel} (${explicitReasoningLabel})` : providerLabel;
+			}
+			const effectiveModelId = card.clineSettings.modelId ?? defaultClineModelId;
+			if (!effectiveModelId) {
+				return explicitReasoningLabel ? `Default model (${explicitReasoningLabel})` : null;
+			}
+			const modelName = resolveClineModelDisplayName(effectiveModelId);
+			if (explicitReasoningLabel) {
+				return `${modelName} (${explicitReasoningLabel})`;
+			}
+			const inheritedReasoningEffort = "";
+			return formatClineSelectedModelButtonText({
+				modelName,
+				reasoningEffort: inheritedReasoningEffort,
+				showReasoningEffort: Boolean(inheritedReasoningEffort),
+			});
+		}
+		// No override: show the project default model only for a cline agent.
+		if (effectiveAgentId !== "cline" || !defaultClineModelId) {
 			return null;
 		}
-		const explicitReasoningLabel = card.clineSettings.reasoningEffort
-			? formatClineReasoningEffortLabel(card.clineSettings.reasoningEffort)
-			: !card.clineSettings.providerId && !card.clineSettings.modelId
-				? "Default"
-				: null;
-		if (card.clineSettings.providerId && !card.clineSettings.modelId) {
-			const providerLabel = `Provider: ${card.clineSettings.providerId}`;
-			return explicitReasoningLabel ? `${providerLabel} (${explicitReasoningLabel})` : providerLabel;
-		}
-		const effectiveModelId = card.clineSettings.modelId ?? defaultClineModelId;
-		if (!effectiveModelId) {
-			return explicitReasoningLabel ? `Default model (${explicitReasoningLabel})` : null;
-		}
-		const modelName = resolveClineModelDisplayName(effectiveModelId);
-		if (explicitReasoningLabel) {
-			return `${modelName} (${explicitReasoningLabel})`;
-		}
-		const inheritedReasoningEffort = "";
-		return formatClineSelectedModelButtonText({
-			modelName,
-			reasoningEffort: inheritedReasoningEffort,
-			showReasoningEffort: Boolean(inheritedReasoningEffort),
-		});
-	}, [card.clineSettings, defaultClineModelId]);
+		return resolveClineModelDisplayName(defaultClineModelId);
+	}, [card.clineSettings, effectiveAgentId, defaultClineModelId]);
+
 	const taskAgentSettingsLabel = useMemo(() => {
-		const parts = [agentOverrideLabel, modelOverrideLabel].filter((value): value is string => Boolean(value));
+		const parts = [agentLabel, modelLabel].filter((value): value is string => Boolean(value));
 		return parts.length > 0 ? parts.join(" · ") : null;
-	}, [agentOverrideLabel, modelOverrideLabel]);
+	}, [agentLabel, modelLabel]);
+
+	const cardTags = useMemo<TaskTag[]>(() => {
+		if (!tags || card.tagIds.length === 0) {
+			return [];
+		}
+		return card.tagIds
+			.map((id) => tags.find((tag) => tag.id === id))
+			.filter((tag): tag is TaskTag => Boolean(tag));
+	}, [card.tagIds, tags]);
 
 	const activeDescriptionDisplay = isDescriptionExpanded ? descriptionDisplay.expanded : descriptionDisplay.collapsed;
 
@@ -728,6 +750,13 @@ export function BoardCard({
 										<Bot size={12} className="shrink-0" />
 										<span className="truncate">{taskAgentSettingsLabel}</span>
 									</span>
+								</div>
+							) : null}
+							{cardTags.length > 0 ? (
+								<div className="flex flex-wrap items-center gap-1 mt-1">
+									{cardTags.map((tag) => (
+										<TagPill key={tag.id} label={tag.label} color={tag.color} />
+									))}
 								</div>
 							) : null}
 							{sessionActivity ? (

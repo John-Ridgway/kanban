@@ -165,6 +165,7 @@ describe("KanbanBoard", () => {
 							autoReviewEnabled: false,
 							autoReviewMode: "commit",
 							baseRef: "main",
+							tagIds: [],
 							createdAt: 1,
 							updatedAt: 1,
 						},
@@ -182,6 +183,7 @@ describe("KanbanBoard", () => {
 							autoReviewEnabled: false,
 							autoReviewMode: "commit",
 							baseRef: "main",
+							tagIds: [],
 							createdAt: 1,
 							updatedAt: 1,
 						},
@@ -191,6 +193,7 @@ describe("KanbanBoard", () => {
 				{ id: "trash", title: "Done", cards: [] },
 			],
 			dependencies: [],
+			tags: [],
 		};
 
 		let requestMove: RequestProgrammaticCardMove | null = null;

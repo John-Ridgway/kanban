@@ -23,6 +23,7 @@ function createTask(taskId: string, prompt: string, createdAt: number): BoardCar
 		autoReviewEnabled: false,
 		autoReviewMode: "commit",
 		baseRef: "main",
+		tagIds: [],
 		createdAt,
 		updatedAt: createdAt,
 	};
@@ -45,6 +46,7 @@ function createBoard(dependencies: BoardDependency[] = []): BoardData {
 			{ id: "trash", title: "Done", cards: [] },
 		],
 		dependencies,
+		tags: [],
 	};
 }
 

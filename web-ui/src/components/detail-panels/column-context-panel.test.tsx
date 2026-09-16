@@ -42,6 +42,7 @@ function createCard(id: string, prompt: string) {
 		autoReviewEnabled: false,
 		autoReviewMode: "commit" as const,
 		baseRef: "main",
+		tagIds: [],
 		createdAt: 1,
 		updatedAt: 1,
 	};

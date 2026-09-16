@@ -250,6 +250,7 @@ export function ColumnContextPanel({
 	openPrTaskLoadingById,
 	moveToTrashLoadingById,
 	panelWidth,
+	taskTags,
 }: {
 	selection: CardSelection;
 	workspacePath?: string | null;
@@ -273,6 +274,7 @@ export function ColumnContextPanel({
 	moveToTrashLoadingById?: Record<string, boolean>;
 	panelWidth?: string;
 	defaultClineModelId?: string | null;
+	taskTags?: ReactNode;
 }): React.ReactElement {
 	const [activeDragSourceColumnId, setActiveDragSourceColumnId] = useState<BoardColumnId | null>(null);
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -325,6 +327,7 @@ export function ColumnContextPanel({
 				background: "var(--color-surface-0)",
 			}}
 		>
+			{taskTags}
 			<DragDropContext onBeforeCapture={handleBeforeCapture} onDragEnd={handleDragEnd}>
 				<div
 					ref={scrollContainerRef}

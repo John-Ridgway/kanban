@@ -16,8 +16,10 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { ProjectNavigationPanel } from "@/components/project-navigation-panel";
 import { RuntimeSettingsDialog, type RuntimeSettingsSection } from "@/components/runtime-settings-dialog";
 import { StartupOnboardingDialog } from "@/components/startup-onboarding-dialog";
+import { TagManagerDialog } from "@/components/tag-manager-dialog";
 import { TaskCreateDialog } from "@/components/task-create-dialog";
 import { TaskInlineCreateCard } from "@/components/task-inline-create-card";
+import { TaskTagsRow } from "@/components/task-tags-row";
 import { TopBar } from "@/components/top-bar";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +71,7 @@ import { useRuntimeProjectConfig } from "@/runtime/use-runtime-project-config";
 import { useTerminalConnectionReady } from "@/runtime/use-terminal-connection-ready";
 import { useWorkspacePersistence } from "@/runtime/use-workspace-persistence";
 import { saveWorkspaceState } from "@/runtime/workspace-state-query";
-import { applyTaskDetailClineSettingsChange, findCardSelection } from "@/state/board-state";
+import { addTaskTag, applyTaskDetailClineSettingsChange, deleteTaskTag, findCardSelection, toggleTaskTag, updateTaskTag } from "@/state/board-state";
 import {
 	getTaskWorkspaceInfo,
 	getTaskWorkspaceSnapshot,
@@ -88,6 +90,7 @@ export default function App(): ReactElement {
 	const [settingsInitialSection, setSettingsInitialSection] = useState<RuntimeSettingsSection | null>(null);
 	const [homeSidebarSection, setHomeSidebarSection] = useState<"projects" | "agent">("projects");
 	const [isClearTrashDialogOpen, setIsClearTrashDialogOpen] = useState(false);
+	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
 	const [isGitHistoryOpen, setIsGitHistoryOpen] = useState(false);
 	const [pendingTaskStartAfterEditId, setPendingTaskStartAfterEditId] = useState<string | null>(null);
 	const taskEditorResetRef = useRef<() => void>(() => {});
@@ -960,6 +963,7 @@ export default function App(): ReactElement {
 												}
 												onDragEnd={handleDragEnd}
 												defaultClineModelId={runtimeProjectConfig?.clineProviderSettings?.modelId ?? null}
+												defaultAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
 											/>
 										)}
 									</div>
@@ -1076,11 +1080,27 @@ export default function App(): ReactElement {
 									isDocumentVisible={isDocumentVisible}
 									onClineSettingsSaved={refreshRuntimeProjectConfig}
 									onTaskClineSettingsChanged={handleClineTaskSettingsChangedForTask}
+								taskTags={
+									<TaskTagsRow
+										cardTagIds={selectedCard.card.tagIds}
+										tags={board.tags}
+										onToggleTag={(tagId) => setBoard((currentBoard) => toggleTaskTag(currentBoard, selectedCard.card.id, tagId).board)}
+										onManageTags={() => setIsTagManagerOpen(true)}
+									/>
+								}
 								/>
 							</div>
 						) : null}
 					</div>
 				</div>
+				<TagManagerDialog
+					open={isTagManagerOpen}
+					onOpenChange={setIsTagManagerOpen}
+					tags={board.tags}
+					onAddTag={(tag) => setBoard((currentBoard) => addTaskTag(currentBoard, tag).board)}
+					onUpdateTag={(tagId, changes) => setBoard((currentBoard) => updateTaskTag(currentBoard, tagId, changes).board)}
+					onDeleteTag={(tagId) => setBoard((currentBoard) => deleteTaskTag(currentBoard, tagId).board)}
+				/>
 				<RuntimeSettingsDialog
 					open={isSettingsOpen}
 					workspaceId={settingsWorkspaceId}

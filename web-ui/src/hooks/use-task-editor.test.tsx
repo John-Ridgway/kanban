@@ -15,6 +15,7 @@ function createTask(taskId: string, prompt: string, createdAt: number, overrides
 		autoReviewEnabled: false,
 		autoReviewMode: "commit",
 		baseRef: "main",
+		tagIds: [],
 		createdAt,
 		updatedAt: createdAt,
 		...overrides,
@@ -30,6 +31,7 @@ function createBoard(tasks: BoardCard[] = []): BoardData {
 			{ id: "trash", title: "Done", cards: [] },
 		],
 		dependencies: [],
+		tags: [],
 	};
 }
 

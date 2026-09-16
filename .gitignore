@@ -28,3 +28,4 @@ packages/desktop/cli
 
 # Husky-generated hook shims (created by `prepare: husky`; never commit)
 .husky/_
+PLAN.md

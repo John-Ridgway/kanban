@@ -312,6 +312,7 @@ export function addTaskToColumn(
 		baseRef,
 		createdAt: now,
 		updatedAt: now,
+		tagIds: [],
 	};
 
 	const targetColumnIndex = board.columns.findIndex((column) => column.id === columnId);

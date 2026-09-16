@@ -52,6 +52,7 @@ function createCard(taskId: string) {
 		prompt: `Task ${taskId}`,
 		startInPlanMode: false,
 		baseRef: "main",
+		tagIds: [],
 		createdAt: Date.now(),
 		updatedAt: Date.now(),
 	};
@@ -74,6 +75,7 @@ function createBoard(taskIds: { inProgress?: string[]; review?: string[] }): Run
 			{ id: "trash", title: "Done", cards: [] },
 		],
 		dependencies: [],
+		tags: [],
 	};
 }
 
