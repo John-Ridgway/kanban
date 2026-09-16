@@ -5,7 +5,7 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { BoardCard } from "@/components/board-card";
 import { Button } from "@/components/ui/button";
 import { ColumnIndicator } from "@/components/ui/column-indicator";
-import type { RuntimeTaskSessionSummary } from "@/runtime/types";
+import type { RuntimeAgentId, RuntimeTaskSessionSummary } from "@/runtime/types";
 import { isCardDropDisabled, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
 import type {
 	BoardCard as BoardCardModel,
@@ -45,6 +45,7 @@ export function BoardColumn({
 	workspacePath,
 	defaultClineModelId,
 	tags,
+	defaultAgentId,
 }: {
 	column: BoardColumnModel;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
@@ -76,6 +77,7 @@ export function BoardColumn({
 	workspacePath?: string | null;
 	defaultClineModelId?: string | null;
 	tags?: TaskTag[];
+	defaultAgentId?: RuntimeAgentId | null;
 }): React.ReactElement {
 	const canCreate = column.id === "backlog" && onCreateTask;
 	const canStartAllTasks = column.id === "backlog" && onStartAllTasks;
@@ -196,6 +198,7 @@ export function BoardColumn({
 											workspacePath={workspacePath}
 											defaultClineModelId={defaultClineModelId}
 											tags={tags}
+											defaultAgentId={defaultAgentId}
 											onSaveTitle={onSaveTitle}
 											onClick={() => {
 												if (column.id === "backlog") {

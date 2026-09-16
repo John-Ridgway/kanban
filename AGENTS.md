@@ -34,6 +34,7 @@ Architecture opinions
 
 Git guardrails
 - NEVER commit unless user asks.
+- NEVER commit `PLAN.md` or any planning/scratch markdown files. They are local working artifacts only.
 
 GitHub issues
 When reading issues:

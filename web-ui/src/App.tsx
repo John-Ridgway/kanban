@@ -963,6 +963,7 @@ export default function App(): ReactElement {
 												}
 												onDragEnd={handleDragEnd}
 												defaultClineModelId={runtimeProjectConfig?.clineProviderSettings?.modelId ?? null}
+												defaultAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
 											/>
 										)}
 									</div>
