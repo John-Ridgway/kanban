@@ -25,4 +25,7 @@ packages/desktop/runtime-child.js
 packages/desktop/runtime-child-env.js
 packages/desktop/desktop-preflight.js
 packages/desktop/cli
+
+# Husky-generated hook shims (created by `prepare: husky`; never commit)
+.husky/_
 PLAN.md

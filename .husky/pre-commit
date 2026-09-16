@@ -1,0 +1,44 @@
+#!/bin/sh
+
+# Normalize CRLF -> LF on staged text files before running checks.
+# This self-heals Windows checkouts where core.autocrlf=true (or GfW's
+# smudge filter) writes CRLF to the worktree despite .gitattributes eol=lf.
+# We only touch files that actually contain CR bytes, so LF files are unaffected.
+git diff --cached --name-only | while IFS= read -r file; do
+	[ -f "$file" ] || continue
+	# Skip binary files (null-byte check)
+	if [ "$(head -c 512 "$file" | tr -dc '\0' | wc -c)" -gt 0 ]; then
+		continue
+	fi
+	# Normalize CRLF -> LF (no-op if file has no CR)
+	before=$(git hash-object --no-filters "$file")
+	sed -i 's/\r$//' "$file"
+	after=$(git hash-object --no-filters "$file")
+	if [ "$before" != "$after" ]; then
+		git add "$file"
+	fi
+done
+
+STAGED_FILES=$(git diff --cached --name-only)
+
+echo "Running biome check on staged files..."
+npx biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true
+if [ $? -ne 0 ]; then
+	echo "Biome check failed."
+	exit 1
+fi
+
+echo "Running type checking and fast tests..."
+npm run typecheck && npm run test:precommit
+if [ $? -ne 0 ]; then
+	echo "Checks failed."
+	exit 1
+fi
+
+git diff --cached --name-only | while IFS= read -r file; do
+	if [ -f "$file" ]; then
+		git add "$file"
+	fi
+done
+
+echo "Pre-commit checks passed."
