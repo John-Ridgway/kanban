@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 import { ColumnIndicator } from "@/components/ui/column-indicator";
 import type { RuntimeAgentId, RuntimeTaskSessionSummary } from "@/runtime/types";
 import { isCardDropDisabled, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
-import type { BoardCard as BoardCardModel, BoardColumnId, BoardColumn as BoardColumnModel } from "@/types";
+import type {
+	BoardCard as BoardCardModel,
+	BoardColumnId,
+	BoardColumn as BoardColumnModel,
+	TaskTag,
+} from "@/types";
 
 export function BoardColumn({
 	column,
@@ -39,6 +44,7 @@ export function BoardColumn({
 	isDependencyLinking,
 	workspacePath,
 	defaultClineModelId,
+	tags,
 	defaultAgentId,
 }: {
 	column: BoardColumnModel;
@@ -70,6 +76,7 @@ export function BoardColumn({
 	isDependencyLinking?: boolean;
 	workspacePath?: string | null;
 	defaultClineModelId?: string | null;
+	tags?: TaskTag[];
 	defaultAgentId?: RuntimeAgentId | null;
 }): React.ReactElement {
 	const canCreate = column.id === "backlog" && onCreateTask;
@@ -190,6 +197,7 @@ export function BoardColumn({
 											isDependencyLinking={isDependencyLinking}
 											workspacePath={workspacePath}
 											defaultClineModelId={defaultClineModelId}
+											tags={tags}
 											defaultAgentId={defaultAgentId}
 											onSaveTitle={onSaveTitle}
 											onClick={() => {

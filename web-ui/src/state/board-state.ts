@@ -16,6 +16,7 @@ import {
 	resolveTaskAutoReviewMode,
 	type TaskAutoReviewMode,
 	type TaskImage,
+	type TaskTag,
 } from "@/types";
 
 export interface TaskDraft {
@@ -143,6 +144,34 @@ function normalizeTaskClineSettings(input: {
 	};
 }
 
+function normalizeTaskTagIds(rawTagIds: unknown): string[] {
+	if (!Array.isArray(rawTagIds)) {
+		return [];
+	}
+	return rawTagIds.filter((id): id is string => typeof id === "string");
+}
+
+function normalizeTaskTags(rawTags: unknown): TaskTag[] {
+	if (!Array.isArray(rawTags)) {
+		return [];
+	}
+	const tags: TaskTag[] = [];
+	for (const rawTag of rawTags) {
+		if (!rawTag || typeof rawTag !== "object") {
+			continue;
+		}
+		const tag = rawTag as { id?: unknown; label?: unknown; color?: unknown };
+		const id = typeof tag.id === "string" ? tag.id.trim() : "";
+		const label = typeof tag.label === "string" ? tag.label.trim() : "";
+		const color = typeof tag.color === "string" ? tag.color.trim() : "";
+		if (!id || !label) {
+			continue;
+		}
+		tags.push({ id, label, color: color || "#4C9AFF" });
+	}
+	return tags;
+}
+
 function normalizeCard(rawCard: unknown): BoardCard | null {
 	if (!rawCard || typeof rawCard !== "object") {
 		return null;
@@ -157,6 +186,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 		autoReviewMode?: unknown;
 		images?: unknown;
 		baseRef?: unknown;
+		tagIds?: unknown;
 		agentId?: unknown;
 		clineSettings?: unknown;
 		clineProviderId?: unknown;
@@ -196,6 +226,7 @@ function normalizeCard(rawCard: unknown): BoardCard | null {
 			typeof card.autoReviewMode === "string" ? (card.autoReviewMode as TaskAutoReviewMode) : undefined,
 		),
 		images: normalizeTaskImages(card.images),
+		tagIds: normalizeTaskTagIds(card.tagIds),
 		baseRef,
 		...(typeof card.agentId === "string" && card.agentId ? { agentId: card.agentId as RuntimeAgentId } : {}),
 		...(clineSettings !== undefined ? { clineSettings } : {}),
@@ -267,6 +298,7 @@ export function normalizeBoardData(rawBoard: unknown): BoardData | null {
 
 	const candidateColumns = (rawBoard as { columns?: unknown }).columns;
 	const candidateDependencies = (rawBoard as { dependencies?: unknown }).dependencies;
+	const candidateTags = (rawBoard as { tags?: unknown }).tags;
 	if (!Array.isArray(candidateColumns)) {
 		return null;
 	}
@@ -314,6 +346,7 @@ export function normalizeBoardData(rawBoard: unknown): BoardData | null {
 	return runtimeTaskState.updateTaskDependencies({
 		columns: normalizedColumns,
 		dependencies: normalizedDependencies,
+		tags: normalizeTaskTags(candidateTags),
 	});
 }
 
@@ -723,4 +756,74 @@ export function findCardSelection(board: BoardData, taskId: string): CardSelecti
 
 export function getTaskColumnId(board: BoardData, taskId: string): BoardColumnId | null {
 	return runtimeTaskState.getTaskColumnId(board, taskId);
+}
+
+function createTaskTagId(): string {
+	return `tag_${createBrowserUuid().replaceAll("-", "").slice(0, 8)}`;
+}
+
+export function addTaskTag(
+	board: BoardData,
+	tag: { label: string; color: string },
+): { board: BoardData; tag: TaskTag | null } {
+	const label = tag.label.trim();
+	if (!label) {
+		return { board, tag: null };
+	}
+	const color = tag.color.trim() || "#4C9AFF";
+	const newTag: TaskTag = { id: createTaskTagId(), label, color };
+	return { board: { ...board, tags: [...board.tags, newTag] }, tag: newTag };
+}
+
+export function updateTaskTag(
+	board: BoardData,
+	tagId: string,
+	changes: { label?: string; color?: string },
+): { board: BoardData; updated: boolean } {
+	const existing = board.tags.find((tag) => tag.id === tagId);
+	if (!existing) {
+		return { board, updated: false };
+	}
+	const label = changes.label?.trim() ? changes.label.trim() : existing.label;
+	const color = changes.color?.trim() ? changes.color.trim() : existing.color;
+	const tags = board.tags.map((tag) => (tag.id === tagId ? { ...tag, label, color } : tag));
+	return { board: { ...board, tags }, updated: true };
+}
+
+export function deleteTaskTag(board: BoardData, tagId: string): { board: BoardData; deleted: boolean } {
+	const existing = board.tags.find((tag) => tag.id === tagId);
+	if (!existing) {
+		return { board, deleted: false };
+	}
+	const tags = board.tags.filter((tag) => tag.id !== tagId);
+	const columns = board.columns.map((column) => {
+		let changed = false;
+		const cards = column.cards.map((card) => {
+			if (!card.tagIds.includes(tagId)) {
+				return card;
+			}
+			changed = true;
+			return { ...card, tagIds: card.tagIds.filter((id) => id !== tagId) };
+		});
+		return changed ? { ...column, cards } : column;
+	});
+	return { board: withUpdatedColumns({ ...board, tags }, columns), deleted: true };
+}
+
+export function toggleTaskTag(
+	board: BoardData,
+	taskId: string,
+	tagId: string,
+): { board: BoardData; updated: boolean } {
+	const selection = findCardSelection(board, taskId);
+	if (!selection) {
+		return { board, updated: false };
+	}
+	const current = selection.card.tagIds;
+	const nextTagIds = current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId];
+	const columns = board.columns.map((column) => {
+		const cards = column.cards.map((card) => (card.id === taskId ? { ...card, tagIds: nextTagIds } : card));
+		return { ...column, cards };
+	});
+	return { board: withUpdatedColumns(board, columns), updated: true };
 }

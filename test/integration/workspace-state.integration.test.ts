@@ -31,6 +31,7 @@ function createBoard(title: string): RuntimeBoardData {
 						prompt: title,
 						startInPlanMode: false,
 						baseRef: "main",
+						tagIds: [],
 						createdAt: Date.now(),
 						updatedAt: Date.now(),
 					},
@@ -41,6 +42,7 @@ function createBoard(title: string): RuntimeBoardData {
 			{ id: "trash", title: "Done", cards: [] },
 		],
 		dependencies: [],
+		tags: [],
 	};
 }
 

@@ -19,6 +19,7 @@ function createBoard(): RuntimeBoardData {
 			{ id: "trash", title: "Done", cards: [] },
 		],
 		dependencies: [],
+		tags: [],
 	};
 }
 

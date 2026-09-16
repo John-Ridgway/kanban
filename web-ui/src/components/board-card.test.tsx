@@ -86,6 +86,7 @@ function createCard(overrides?: Partial<Parameters<typeof BoardCard>[0]["card"]>
 		autoReviewEnabled: false,
 		autoReviewMode: "commit" as const,
 		baseRef: "main",
+		tagIds: [],
 		createdAt: 1,
 		updatedAt: 1,
 		...overrides,

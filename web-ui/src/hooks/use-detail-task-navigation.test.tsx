@@ -21,6 +21,7 @@ function createBoard(): BoardData {
 						autoReviewEnabled: false,
 						autoReviewMode: "commit",
 						baseRef: "main",
+						tagIds: [],
 						createdAt: 1,
 						updatedAt: 1,
 					},
@@ -31,6 +32,7 @@ function createBoard(): BoardData {
 			{ id: "trash", title: "Done", cards: [] },
 		],
 		dependencies: [],
+		tags: [],
 	};
 }
 

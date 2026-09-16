@@ -38,6 +38,7 @@ function createTask(taskId: string, prompt: string, createdAt: number): BoardCar
 		autoReviewEnabled: false,
 		autoReviewMode: "commit",
 		baseRef: "main",
+		tagIds: [],
 		createdAt,
 		updatedAt: createdAt,
 	};
@@ -56,6 +57,7 @@ function createBoard(): BoardData {
 			{ id: "trash", title: "Done", cards: [] },
 		],
 		dependencies: [],
+		tags: [],
 	};
 }
 
@@ -468,6 +470,7 @@ describe("useBoardInteractions", () => {
 				{ id: "trash", title: "Done", cards: [trashTask] },
 			],
 			dependencies: [],
+			tags: [],
 		};
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((_nextBoard) => {
 			// The optimistic move is not part of this assertion.
@@ -563,6 +566,7 @@ describe("useBoardInteractions", () => {
 				modelId: "my-model",
 			},
 			baseRef: "main",
+			tagIds: [],
 			createdAt: 2,
 			updatedAt: 2,
 		};
@@ -574,6 +578,7 @@ describe("useBoardInteractions", () => {
 				{ id: "trash", title: "Done", cards: [trashTask] },
 			],
 			dependencies: [],
+			tags: [],
 		};
 		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
 			if (typeof nextBoard === "function") {
@@ -661,6 +666,7 @@ describe("useBoardInteractions", () => {
 				{ id: "trash", title: "Done", cards: [trashTask] },
 			],
 			dependencies: [],
+			tags: [],
 		};
 		const setSelectedTaskId = vi.fn<Dispatch<SetStateAction<string | null>>>();
 
@@ -724,6 +730,7 @@ describe("useBoardInteractions", () => {
 				{ id: "trash", title: "Done", cards: trashTasks },
 			],
 			dependencies: [],
+			tags: [],
 		};
 
 		// Track how many per-task cleanup chains (stop -> cleanup) run at once.

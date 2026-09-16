@@ -413,6 +413,7 @@ export function KanbanBoard({
 						isDependencyLinking={dependencyLinking.draft !== null}
 						workspacePath={workspacePath}
 						defaultClineModelId={defaultClineModelId}
+						tags={data.tags}
 						defaultAgentId={defaultAgentId}
 						onCardClick={(card) => {
 							if (!dragOccurredRef.current) {
