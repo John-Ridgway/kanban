@@ -13,6 +13,7 @@ describe("getStartableBacklogTaskIds", () => {
 			autoReviewEnabled: false,
 			autoReviewMode: "commit",
 			baseRef: "main",
+			tagIds: [],
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};
@@ -35,6 +36,7 @@ describe("getStartableBacklogTaskIds", () => {
 				{ id: "trash", title: "Done", cards: [] },
 			],
 			dependencies,
+			tags: [],
 		};
 	}
 

@@ -129,6 +129,14 @@ function normalizeRuntimeTaskClineSettings(input: {
 	};
 }
 
+export const runtimeTaskTagSchema = z.object({
+	id: z.string(),
+	label: z.string(),
+	color: z.string(),
+});
+
+export type RuntimeTaskTag = z.infer<typeof runtimeTaskTagSchema>;
+
 export const runtimeBoardCardSchema = z
 	.object({
 		id: z.string(),
@@ -146,6 +154,7 @@ export const runtimeBoardCardSchema = z
 		baseRef: z.string(),
 		createdAt: z.number(),
 		updatedAt: z.number(),
+		tagIds: z.array(z.string()).default([]),
 	})
 	.transform(
 		({
@@ -187,6 +196,7 @@ export type RuntimeBoardDependency = z.infer<typeof runtimeBoardDependencySchema
 export const runtimeBoardDataSchema = z.object({
 	columns: z.array(runtimeBoardColumnSchema),
 	dependencies: z.array(runtimeBoardDependencySchema).default([]),
+	tags: z.array(runtimeTaskTagSchema).default([]),
 });
 export type RuntimeBoardData = z.infer<typeof runtimeBoardDataSchema>;
 

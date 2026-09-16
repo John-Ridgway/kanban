@@ -11,13 +11,14 @@ import {
 	formatClineSelectedModelButtonText,
 	resolveClineModelDisplayName,
 } from "@/components/detail-panels/cline-model-picker-options";
+import { TagPill } from "@/components/tag-pill";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import { useTaskWorkspaceSnapshotValue } from "@/stores/workspace-metadata-store";
-import type { BoardCard as BoardCardModel, BoardColumnId } from "@/types";
+import type { BoardCard as BoardCardModel, BoardColumnId, TaskTag } from "@/types";
 import { getTaskAutoReviewCancelButtonLabel } from "@/types";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { useMeasure } from "@/utils/react-use";
@@ -234,6 +235,7 @@ export function BoardCard({
 	isDependencyLinking = false,
 	workspacePath,
 	defaultClineModelId = null,
+	tags,
 }: {
 	card: BoardCardModel;
 	index: number;
@@ -258,6 +260,7 @@ export function BoardCard({
 	isDependencyLinking?: boolean;
 	workspacePath?: string | null;
 	defaultClineModelId?: string | null;
+	tags?: TaskTag[];
 }): React.ReactElement {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -470,6 +473,15 @@ export function BoardCard({
 		const parts = [agentOverrideLabel, modelOverrideLabel].filter((value): value is string => Boolean(value));
 		return parts.length > 0 ? parts.join(" · ") : null;
 	}, [agentOverrideLabel, modelOverrideLabel]);
+
+	const cardTags = useMemo<TaskTag[]>(() => {
+		if (!tags || card.tagIds.length === 0) {
+			return [];
+		}
+		return card.tagIds
+			.map((id) => tags.find((tag) => tag.id === id))
+			.filter((tag): tag is TaskTag => Boolean(tag));
+	}, [card.tagIds, tags]);
 
 	const activeDescriptionDisplay = isDescriptionExpanded ? descriptionDisplay.expanded : descriptionDisplay.collapsed;
 
@@ -728,6 +740,13 @@ export function BoardCard({
 										<Bot size={12} className="shrink-0" />
 										<span className="truncate">{taskAgentSettingsLabel}</span>
 									</span>
+								</div>
+							) : null}
+							{cardTags.length > 0 ? (
+								<div className="flex flex-wrap items-center gap-1 mt-1">
+									{cardTags.map((tag) => (
+										<TagPill key={tag.id} label={tag.label} color={tag.color} />
+									))}
 								</div>
 							) : null}
 							{sessionActivity ? (

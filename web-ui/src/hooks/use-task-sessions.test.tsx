@@ -39,6 +39,7 @@ function createTask(): BoardCard {
 		autoReviewEnabled: false,
 		autoReviewMode: "commit",
 		baseRef: "main",
+		tagIds: [],
 		createdAt: 1,
 		updatedAt: 1,
 	};

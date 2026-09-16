@@ -366,6 +366,7 @@ export function CardDetailView({
 	isDocumentVisible = true,
 	onClineSettingsSaved,
 	onTaskClineSettingsChanged,
+	taskTags,
 }: {
 	selection: CardSelection;
 	currentProjectId: string | null;
@@ -432,6 +433,7 @@ export function CardDetailView({
 		modelId: string;
 		reasoningEffort: RuntimeClineReasoningEffort | "";
 	}) => void;
+	taskTags?: ReactNode;
 }): React.ReactElement {
 	const isMobile = useIsMobile();
 	const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
@@ -823,6 +825,7 @@ export function CardDetailView({
 							moveToTrashLoadingById={moveToTrashLoadingById}
 							panelWidth="100%"
 							defaultClineModelId={runtimeConfig?.clineProviderSettings?.modelId ?? null}
+						taskTags={taskTags}
 						/>
 					</div>
 					<ResizeHandle
