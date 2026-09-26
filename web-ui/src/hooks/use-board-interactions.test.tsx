@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useBoardInteractions } from "@/hooks/use-board-interactions";
 import type { UseTaskSessionsResult } from "@/hooks/use-task-sessions";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
-import type { BoardCard, BoardData } from "@/types";
+import { moveTaskToColumn } from "@/state/board-state";
+import type { BoardCard, BoardColumnId, BoardData } from "@/types";
 
 const notifyErrorMock = vi.hoisted(() => vi.fn());
 const showAppToastMock = vi.hoisted(() => vi.fn());
@@ -44,20 +45,43 @@ function createTask(taskId: string, prompt: string, createdAt: number): BoardCar
 	};
 }
 
-function createBoard(): BoardData {
+function createBoard(overrides?: Partial<Record<BoardColumnId, BoardCard[]>>): BoardData {
 	return {
 		columns: [
 			{
 				id: "backlog",
 				title: "Backlog",
-				cards: [createTask("task-1", "Backlog task", 1)],
+				cards: overrides?.backlog ?? [createTask("task-1", "Backlog task", 1)],
 			},
-			{ id: "in_progress", title: "In Progress", cards: [] },
-			{ id: "review", title: "Review", cards: [] },
-			{ id: "trash", title: "Done", cards: [] },
+			{ id: "planning", title: "Planning", cards: overrides?.planning ?? [] },
+			{ id: "in_progress", title: "In Progress", cards: overrides?.in_progress ?? [] },
+			{ id: "review", title: "Review", cards: overrides?.review ?? [] },
+			{ id: "trash", title: "Done", cards: overrides?.trash ?? [] },
 		],
 		dependencies: [],
 		tags: [],
+	};
+}
+
+function createSession(
+	taskId: string,
+	state: RuntimeTaskSessionSummary["state"],
+	updatedAt: number,
+): RuntimeTaskSessionSummary {
+	return {
+		taskId,
+		state,
+		mode: null,
+		agentId: "pi",
+		workspacePath: null,
+		pid: null,
+		startedAt: null,
+		updatedAt,
+		lastOutputAt: null,
+		reviewReason: state === "awaiting_review" ? "hook" : null,
+		exitCode: null,
+		lastHookAt: null,
+		latestHookActivity: null,
 	};
 }
 
@@ -72,6 +96,7 @@ interface HookSnapshot {
 	handleStartTask: (taskId: string) => void;
 	handleCardSelect: (taskId: string) => void;
 	handleConfirmClearTrash: () => void;
+	setSessions: Dispatch<SetStateAction<Record<string, RuntimeTaskSessionSummary>>>;
 }
 
 function createRect(width: number, height: number): DOMRect {
@@ -142,6 +167,7 @@ function HookHarness({
 			handleStartTask: actions.handleStartTask,
 			handleCardSelect: actions.handleCardSelect,
 			handleConfirmClearTrash: actions.handleConfirmClearTrash,
+			setSessions,
 		});
 	}, [
 		actions.handleCardSelect,
@@ -149,6 +175,7 @@ function HookHarness({
 		actions.handleRestoreTaskFromTrash,
 		actions.handleStartTask,
 		onSnapshot,
+		setSessions,
 	]);
 
 	return null;
@@ -779,5 +806,198 @@ describe("useBoardInteractions", () => {
 			expect(stopTaskSession).toHaveBeenCalledWith(task.id);
 			expect(cleanupTaskWorkspace).toHaveBeenCalledWith(task.id);
 		}
+	});
+
+	describe("in-progress -> review auto-advance", () => {
+		let latestSnapshot: HookSnapshot | null = null;
+		let tryProgrammaticCardMoveMock: ReturnType<typeof vi.fn>;
+		let currentBoard: BoardData;
+		let setBoard: Dispatch<SetStateAction<BoardData>>;
+		let mountedWithInitialSessions = false;
+
+		beforeEach(() => {
+			latestSnapshot = null;
+			tryProgrammaticCardMoveMock = vi.fn();
+			mountedWithInitialSessions = false;
+			programmaticCardMovesStub = null;
+			currentBoard = createBoard();
+		});
+
+		const cardIn = (taskId: string, columnId: BoardColumnId): boolean => {
+			const column = currentBoard.columns.find((c) => c.id === columnId);
+			return column?.cards.some((card) => card.id === taskId) ?? false;
+		};
+
+		function mockProgrammaticCardMoves(options: { cycle?: number }): void {
+			useLinkedBacklogTaskActionsMock.mockReturnValue({
+				handleCreateDependency: () => {},
+				handleDeleteDependency: () => {},
+				confirmMoveTaskToTrash: async () => {},
+				requestMoveTaskToTrash: async () => {},
+			});
+			// The stub must be a single stable object: the hook derives stable
+			// callback identities from it, and a fresh object per render triggers
+			// the project-reset effect (setState) on every render.
+			if (!programmaticCardMovesStub) {
+				programmaticCardMovesStub = {
+					handleProgrammaticCardMoveReady: () => {},
+					setRequestMoveTaskToTrashHandler: () => {},
+					tryProgrammaticCardMove: tryProgrammaticCardMoveMock,
+					consumeProgrammaticCardMove: () => ({}),
+					resolvePendingProgrammaticTrashMove: () => {},
+					waitForProgrammaticCardMoveAvailability: async () => {},
+					resetProgrammaticCardMoves: () => {},
+					requestMoveTaskToTrashWithAnimation: async () => {},
+					programmaticCardMoveCycle: options.cycle ?? 0,
+				};
+				useProgrammaticCardMovesMock.mockReturnValue(programmaticCardMovesStub);
+			}
+			programmaticCardMovesStub.programmaticCardMoveCycle = options.cycle ?? 0;
+		}
+
+		let programmaticCardMovesStub: {
+			handleProgrammaticCardMoveReady: () => void;
+			setRequestMoveTaskToTrashHandler: () => void;
+			tryProgrammaticCardMove: ReturnType<typeof vi.fn>;
+			consumeProgrammaticCardMove: () => void;
+			resolvePendingProgrammaticTrashMove: () => void;
+			waitForProgrammaticCardMoveAvailability: () => Promise<void>;
+			resetProgrammaticCardMoves: () => void;
+			requestMoveTaskToTrashWithAnimation: () => Promise<void>;
+			programmaticCardMoveCycle: number;
+		} | null = null;
+
+		async function renderHarness(board: BoardData): Promise<void> {
+			if (!mountedWithInitialSessions) {
+				mountedWithInitialSessions = true;
+				currentBoard = board;
+				setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+					currentBoard = typeof nextBoard === "function" ? (nextBoard(currentBoard) ?? currentBoard) : nextBoard;
+				});
+			}
+			await act(async () => {
+				root.render(
+					<HookHarness
+						board={board}
+						setBoard={setBoard}
+						ensureTaskWorkspace={async () => ({ ok: true as const })}
+						startTaskSession={async () => ({ ok: true as const })}
+						onSnapshot={(snapshot) => {
+							latestSnapshot = snapshot;
+						}}
+					/>,
+				);
+			});
+		}
+
+		it("falls back to a direct move when the delegated animation never lands the card", async () => {
+			tryProgrammaticCardMoveMock = vi.fn(() => "started" as const);
+			mockProgrammaticCardMoves({ cycle: 0 });
+			await renderHarness(createBoard({ backlog: [], in_progress: [createTask("task-1", "In progress task", 1)] }));
+
+			// The pi turn settles while the card is in progress.
+			if (!latestSnapshot) {
+				throw new Error("Expected a hook snapshot.");
+			}
+			await act(async () => {
+				latestSnapshot!.setSessions({ "task-1": createSession("task-1", "awaiting_review", 100) });
+			});
+
+			// First pass delegates to the animation; the card is still in progress.
+			expect(tryProgrammaticCardMoveMock).toHaveBeenCalledTimes(1);
+			expect(tryProgrammaticCardMoveMock).toHaveBeenCalledWith("task-1", "in_progress", "review");
+			expect(cardIn("task-1", "in_progress")).toBe(true);
+
+			// The drop settles without moving the card (e.g. stale board snapshot),
+			// which bumps the programmatic card-move cycle and re-runs the effect.
+			mockProgrammaticCardMoves({ cycle: 1 });
+			currentBoard = { ...currentBoard };
+			await renderHarness(currentBoard);
+
+			// The verification pass applied the authoritative direct move instead of
+			// re-delegating to the animation.
+			expect(cardIn("task-1", "review")).toBe(true);
+			expect(tryProgrammaticCardMoveMock).toHaveBeenCalledTimes(1);
+		});
+
+		it("does not double-move when the delegated animation lands the card", async () => {
+			tryProgrammaticCardMoveMock = vi.fn(() => "started" as const);
+			mockProgrammaticCardMoves({ cycle: 0 });
+			await renderHarness(createBoard({ backlog: [], in_progress: [createTask("task-1", "In progress task", 1)] }));
+
+			if (!latestSnapshot) {
+				throw new Error("Expected a hook snapshot.");
+			}
+			await act(async () => {
+				latestSnapshot!.setSessions({ "task-1": createSession("task-1", "awaiting_review", 100) });
+			});
+
+			expect(tryProgrammaticCardMoveMock).toHaveBeenCalledTimes(1);
+			expect(cardIn("task-1", "in_progress")).toBe(true);
+
+			// Simulate the drop landing: the animation moves the card to review.
+			currentBoard = moveTaskToColumn(currentBoard, "task-1", "review", { insertAtTop: true }).board;
+			mockProgrammaticCardMoves({ cycle: 1 });
+			await renderHarness(currentBoard);
+
+			// Card stays in review and no second animation was requested.
+			expect(cardIn("task-1", "review")).toBe(true);
+			expect(tryProgrammaticCardMoveMock).toHaveBeenCalledTimes(1);
+		});
+
+		it("does not auto-advance a kickoff on a stale awaiting_review summary", async () => {
+			tryProgrammaticCardMoveMock = vi.fn(() => "unavailable" as const);
+			mockProgrammaticCardMoves({ cycle: 0 });
+
+			// Planning turn already settled: card in planning with an
+			// awaiting_review summary, mirroring the state before a
+			// planning -> in_progress kickoff.
+			await renderHarness(createBoard({ backlog: [], planning: [createTask("task-1", "Planning task", 1)] }));
+
+			if (!latestSnapshot) {
+				throw new Error("Expected a hook snapshot.");
+			}
+			await act(async () => {
+				latestSnapshot!.setSessions({ "task-1": createSession("task-1", "awaiting_review", 100) });
+			});
+
+			// The planning -> in_progress kickoff moves the card; the sessions
+			// stream re-delivers the same (stale) summary.
+			currentBoard = createBoard({ backlog: [], in_progress: [createTask("task-1", "Planning task", 1)] });
+			await renderHarness(currentBoard);
+
+			expect(tryProgrammaticCardMoveMock).not.toHaveBeenCalled();
+			expect(cardIn("task-1", "in_progress")).toBe(true);
+			expect(cardIn("task-1", "review")).toBe(false);
+		});
+
+		it("advances again for a fresh turn after the card returned to in progress", async () => {
+			tryProgrammaticCardMoveMock = vi.fn(() => "unavailable" as const);
+			mockProgrammaticCardMoves({ cycle: 0 });
+			await renderHarness(createBoard({ backlog: [], in_progress: [createTask("task-1", "In progress task", 1)] }));
+
+			if (!latestSnapshot) {
+				throw new Error("Expected a hook snapshot.");
+			}
+			await act(async () => {
+				latestSnapshot!.setSessions({ "task-1": createSession("task-1", "awaiting_review", 100) });
+			});
+
+			// Turn 1 advanced straight to review (animation unavailable).
+			expect(cardIn("task-1", "review")).toBe(true);
+
+			// User re-starts: the running summary moves the card back to
+			// in progress via the existing running-state reconciliation.
+			await act(async () => {
+				latestSnapshot!.setSessions({ "task-1": createSession("task-1", "running", 150) });
+			});
+			expect(cardIn("task-1", "in_progress")).toBe(true);
+
+			// Turn 2 settles with a fresh awaiting_review summary.
+			await act(async () => {
+				latestSnapshot!.setSessions({ "task-1": createSession("task-1", "awaiting_review", 200) });
+			});
+			expect(cardIn("task-1", "review")).toBe(true);
+		});
 	});
 });
