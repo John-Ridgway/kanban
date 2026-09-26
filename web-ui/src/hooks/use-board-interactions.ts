@@ -134,6 +134,11 @@ export function useBoardInteractions({
 	runAutoReviewGitAction,
 }: UseBoardInteractionsInput): UseBoardInteractionsResult {
 	const previousSessionsRef = useRef<Record<string, RuntimeTaskSessionSummary>>({});
+	// taskId -> summary.updatedAt for an In-Progress -> Review advance that was
+	// delegated to the card-move animation. The auto-advance effect re-runs when
+	// the animation settles (programmaticCardMoveCycle) and verifies the card
+	// actually landed, falling back to a direct board move if it didn't.
+	const pendingReviewAdvanceRef = useRef<Record<string, number>>({});
 	const notificationPermissionPromptInFlightRef = useRef(false);
 	const moveToTrashLoadingByIdRef = useRef<Record<string, true>>({});
 	const pendingProgrammaticStartMoveCompletionByTaskIdRef = useRef<
@@ -353,9 +358,9 @@ export function useBoardInteractions({
 			const kickoffSessionOptions =
 				options?.kickoffPrompt || options?.clearContext
 					? {
-								kickoffPrompt: options.kickoffPrompt,
-								clearContext: options.clearContext,
-							}
+							kickoffPrompt: options.kickoffPrompt,
+							clearContext: options.clearContext,
+						}
 					: undefined;
 			const started = kickoffSessionOptions
 				? await startTaskSession(task, kickoffSessionOptions)
@@ -542,19 +547,42 @@ export function useBoardInteractions({
 					continue;
 				}
 				const columnId = getTaskColumnId(nextBoard, summary.taskId);
-				if (
-					summary.state === "awaiting_review" &&
-					previous?.state !== "awaiting_review" &&
-					columnId === "in_progress"
-				) {
-					const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, "review");
-					if (programmaticMoveAttempt === "started" || programmaticMoveAttempt === "blocked") {
+				// A pending marker for a task that has left in_progress is stale: the
+				// delegated animation landed (or the user moved the card) successfully.
+				if (pendingReviewAdvanceRef.current[summary.taskId] !== undefined && columnId !== "in_progress") {
+					delete pendingReviewAdvanceRef.current[summary.taskId];
+				}
+				if (summary.state === "awaiting_review" && columnId === "in_progress") {
+					const advanceAlreadyDelegated = pendingReviewAdvanceRef.current[summary.taskId] === summary.updatedAt;
+
+					// Kickoff protection: a planning -> in_progress kickoff must not
+					// auto-advance on a stale awaiting_review summary. A delegated
+					// advance from this same summary's updatedAt is allowed through so
+					// the follow-up pass can verify the animation landed.
+					const mayAdvance = advanceAlreadyDelegated || previous?.state !== "awaiting_review";
+					if (!mayAdvance) {
 						continue;
 					}
+
+					if (!advanceAlreadyDelegated) {
+						const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, "review");
+						if (programmaticMoveAttempt === "started" || programmaticMoveAttempt === "blocked") {
+							// Delegate to the animation; the effect re-runs when it
+							// settles and we verify + fall back to a direct move below if
+							// the card is still in in_progress.
+							pendingReviewAdvanceRef.current[summary.taskId] = summary.updatedAt;
+							continue;
+						}
+					}
+
+					// Authoritative move - guaranteed to land (animation unavailable,
+					// blocked resolution, or the delegated animation failed to move
+					// the card).
 					const moved = moveTaskToColumn(nextBoard, summary.taskId, "review", { insertAtTop: true });
 					if (moved.moved) {
 						nextBoard = moved.board;
 					}
+					delete pendingReviewAdvanceRef.current[summary.taskId];
 					continue;
 				}
 				if (summary.state === "running" && columnId === "review") {
@@ -610,7 +638,7 @@ export function useBoardInteractions({
 			previousSessionsRef.current = nextPreviousSessions;
 			return nextBoard;
 		});
-	}, [programmaticCardMoveCycle, sessions, setBoard, setSelectedTaskId, tryProgrammaticCardMove]);
+	}, [board, programmaticCardMoveCycle, sessions, setBoard, setSelectedTaskId, tryProgrammaticCardMove]);
 
 	const { confirmMoveTaskToTrash, handleCreateDependency, handleDeleteDependency, requestMoveTaskToTrash } =
 		useLinkedBacklogTaskActions({
@@ -1025,6 +1053,7 @@ export function useBoardInteractions({
 
 	const resetBoardInteractionsState = useCallback(() => {
 		previousSessionsRef.current = {};
+		pendingReviewAdvanceRef.current = {};
 		moveToTrashLoadingByIdRef.current = {};
 		setMoveToTrashLoadingById({});
 		for (const taskId of Object.keys(pendingProgrammaticStartMoveCompletionByTaskIdRef.current)) {
